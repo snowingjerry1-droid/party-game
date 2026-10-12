@@ -158,6 +158,8 @@ input::placeholder{color:var(--dim)}
 .climber{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:18px;background:linear-gradient(90deg,rgba(43,217,163,.22),rgba(63,169,245,.12));border:1px solid rgba(43,217,163,.5);font-size:clamp(16px,2vw,24px);max-width:980px;margin:0 auto 16px;width:100%}
 .climber b{font-family:var(--display);font-size:1.3em}
 .climber .mv{margin-left:auto;font-family:var(--display);color:var(--mint);font-size:1.2em}
+.choice.ox{justify-content:center;font-size:clamp(44px,7vw,96px);min-height:190px}
+.gchoice.ox{font-size:60px;min-height:180px}
 .warn{background:rgba(255,94,108,.12);border:1px solid rgba(255,94,108,.4);padding:12px 14px;border-radius:12px;color:#ffb3ba;font-size:14px}
 .info{background:rgba(63,169,245,.12);border:1px solid rgba(63,169,245,.4);padding:12px 14px;border-radius:12px;color:#bfe3ff;font-size:14px}
 
@@ -276,16 +278,21 @@ const DEFAULT_ROUNDS = [
       { q: '전통 축구공(검은 오각형 + 흰 육각형)은 가죽 조각이 모두 몇 개일까?', unit: '개', answer: 32 },
       { q: '대한민국이 올림픽에서 처음 금메달을 딴 해는?', unit: '년', answer: 1976 },
     ] },
-  { key: 'third', type: 'twothirds', title: '평균의 2/3', emoji: '🧠', seconds: 25, enabled: true, mult: 2,
-    rule: '0~100 사이 숫자를 내세요. 모두가 낸 숫자 평균의 2/3에 가장 가까운 사람이 1000점! 상위 10% 600점, 상위 30% 300점.',
-    items: [{ q: '1라운드' }, { q: '2라운드 · 다들 눈치를 챘을까?' }] },
+  { key: 'ox', type: 'ox', title: 'OX 퀴즈', emoji: '⭕', seconds: 15, enabled: true, mult: 2,
+    rule: 'O 아니면 X! 맞히면 500점, 빨리 맞힐수록 최대 1000점. 몰라도 반은 맞힐 수 있어요!',
+    items: [
+      { q: '문어는 심장이 3개다', answer: 0 },
+      { q: '금붕어의 기억력은 3초밖에 안 된다', answer: 1 },
+      { q: '바나나는 나무가 아니라 풀에서 열린다', answer: 0 },
+    ] },
   { key: 'umin', type: 'uniquemin', title: '유일한 최소 숫자', emoji: '🦄', seconds: 25, enabled: true, mult: 2,
     rule: '1~100 중 아무도 안 고른 가장 작은 숫자를 낸 사람이 1000점! 겹치지만 않아도 200점.',
     items: [{ q: '1라운드' }, { q: '2라운드 · 진짜 눈치 싸움' }] },
 ];
-const TYPE_LABEL = { quiz: '스피드 퀴즈 (4지선다)', majority: '다수결 예측 (2택)', estimate: '숫자 맞히기', twothirds: '평균의 2/3', uniquemin: '유일한 최소 숫자' };
+const OX = ['⭕', '❌'];
+const TYPE_LABEL = { ox: 'OX 퀴즈', quiz: '스피드 퀴즈 (4지선다)', majority: '다수결 예측 (2택)', estimate: '숫자 맞히기', twothirds: '평균의 2/3', uniquemin: '유일한 최소 숫자' };
 // 게임 설정: 황금 문제(숨겨진 배율) · 블라인드(순위 비공개) 시작 라운드
-const DEFAULT_SETTINGS = { golden: 3, goldenX: 2, blindFrom: 'third' };
+const DEFAULT_SETTINGS = { golden: 3, goldenX: 2, blindFrom: 'ox' };
 // 숫자형 라운드 점수: 1위(동점 모두) 1000 · 상위 10% 600 · 상위 30% 300
 const tierPoints = (rank, n) => rank === 1 ? 1000 : (rank - 1) / Math.max(1, n) < 0.1 ? 600 : (rank - 1) / Math.max(1, n) < 0.3 ? 300 : 0;
 
@@ -311,7 +318,7 @@ function scoreRound(round, item, answers, players, mult = 1) {
   const byId = new Map(players.map(p => [p.id, p]));
   const nm = id => { const p = byId.get(id); return p ? displayName(p) : '?'; };
   const scores = [], result = { type: round.type, n: answers.length };
-  if (round.type === 'quiz') {
+  if (round.type === 'quiz' || round.type === 'ox') {
     const counts = [0, 0, 0, 0]; let fastest = null, correctCount = 0;
     for (const a of answers) {
       const c = Number(a.answer?.c); if (c >= 0 && c < 4) counts[c]++;
@@ -595,7 +602,8 @@ function hostApp() {
   function viewQuestion() {
     const r = curRound(), it = curItem(); if (!r || !it) return '';
     let body = '';
-    if (r.type === 'quiz') body = `<div class="choices">${it.choices.map((c, i) => `<div class="choice c${i}"><span class="sym">${SYM[i]}</span><span>${esc(c)}</span></div>`).join('')}</div>`;
+    if (r.type === 'ox') body = `<div class="choices"><div class="choice c1 ox">⭕</div><div class="choice c0 ox">❌</div></div>`;
+    else if (r.type === 'quiz') body = `<div class="choices">${it.choices.map((c, i) => `<div class="choice c${i}"><span class="sym">${SYM[i]}</span><span>${esc(c)}</span></div>`).join('')}</div>`;
     else if (r.type === 'majority') body = `<div class="choices">${it.choices.map((c, i) => `<div class="choice c${i}" style="min-height:140px;justify-content:center;font-size:clamp(26px,3.6vw,48px)">${esc(c)}</div>`).join('')}</div>`;
     else if (r.type === 'estimate') body = `<div class="intro"><div class="emoji">🎯</div><p class="rule">폰에 숫자를 입력하세요 (단위: ${esc(it.unit || '')})<br>가장 가까운 사람이 정답! 똑같이 가까우면 모두 정답</p></div>`;
     else if (r.type === 'twothirds') body = `<div class="intro"><div class="emoji">🧠</div><p class="rule">0~100 사이 숫자를 폰에 입력하세요<br>전체 평균의 2/3에 가장 가까운 사람이 승리!</p></div>`;
@@ -612,7 +620,10 @@ function hostApp() {
     const r = curRound(), it = curItem(), R = state.payload.result || {}; if (!r || !it) return '';
     let body = '';
     const total = Math.max(1, R.n || 1);
-    if (R.type === 'quiz') {
+    if (R.type === 'ox') {
+      body = `<div class="choices">${[1, 0].map((cls, i) => `<div class="choice c${cls} ox ${i === R.answer ? 'right' : 'wrong'}"><i class="bar" data-w="${(R.counts?.[i] || 0) / total * 100}"></i><span>${OX[i]}</span><span class="cnt num" style="font-size:.45em">${R.counts?.[i] || 0}명</span></div>`).join('')}</div>
+        <div class="answered">정답 <b>${OX[R.answer]}</b> · 정답자 <b class="num">${R.correctCount || 0}</b>명 ${R.fastest ? `· ⚡ 최고 속도 <b>${esc(R.fastest.name)}</b> <span class="num">(${(R.fastest.ms / 1000).toFixed(2)}초)</span>` : ''}</div>`;
+    } else if (R.type === 'quiz') {
       body = `<div class="choices">${it.choices.map((c, i) => `<div class="choice c${i} ${i === R.answer ? 'right' : 'wrong'}"><i class="bar" data-w="${(R.counts?.[i] || 0) / total * 100}"></i><span class="sym">${SYM[i]}</span><span>${esc(c)}</span><span class="cnt num">${R.counts?.[i] || 0}</span>${i === R.answer ? '<span class="ok">✅</span>' : ''}</div>`).join('')}</div>
         <div class="answered">정답자 <b class="num">${R.correctCount || 0}</b>명 ${R.fastest ? `· ⚡ 최고 속도 <b>${esc(R.fastest.name)}</b> <span class="num">(${(R.fastest.ms / 1000).toFixed(2)}초)</span>` : ''}</div>`;
     } else if (R.type === 'majority') {
@@ -676,7 +687,9 @@ function hostApp() {
     if (!r) return editorShell(viewSettings());
     const items = r.items.map((it, qi) => {
       let body = '';
-      if (r.type === 'quiz') body = `<div class="field"><label>문제</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
+      if (r.type === 'ox') body = `<div class="field"><label>문제 (O 또는 X로 답할 수 있는 문장)</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
+        <div class="opts">${[0, 1].map(i => `<label class="opt" style="font-weight:700"><input type="radio" name="ans-${tab}-${qi}" data-p="${tab}.items.${qi}.answer" data-v="${i}" ${Number(it.answer) === i ? 'checked' : ''}> 정답 ${OX[i]}</label>`).join('')}</div>`;
+      else if (r.type === 'quiz') body = `<div class="field"><label>문제</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
         <div class="opts">${[0, 1, 2, 3].map(i => `<div class="opt"><i style="background:var(--c${i})"></i><input type="radio" name="ans-${tab}-${qi}" data-p="${tab}.items.${qi}.answer" data-v="${i}" ${Number(it.answer) === i ? 'checked' : ''} title="정답"><input data-p="${tab}.items.${qi}.choices.${i}" value="${esc(it.choices?.[i] ?? '')}" placeholder="선택지 ${i + 1}"></div>`).join('')}</div><div class="tiny" style="text-align:left">라디오 버튼으로 정답을 표시하세요</div>`;
       else if (r.type === 'majority') body = `<div class="field"><label>질문</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
         <div class="opts">${[0, 1].map(i => `<div class="opt"><i style="background:var(--c${i})"></i><input data-p="${tab}.items.${qi}.choices.${i}" value="${esc(it.choices?.[i] ?? '')}" placeholder="선택지 ${i + 1}"></div>`).join('')}</div>`;
@@ -729,7 +742,7 @@ function hostApp() {
     else if (act === 'tab') tab = el.dataset.i === 'settings' ? 'settings' : Number(el.dataset.i);
     else if (!r && ['add', 'del', 'up', 'down'].includes(act)) { /* 설정 탭에서는 무시 */ }
     else if (act === 'add') {
-      const blank = r.type === 'quiz' ? { q: '', choices: ['', '', '', ''], answer: 0 } : r.type === 'majority' ? { q: '', choices: ['', ''] } : r.type === 'estimate' ? { q: '', unit: '', answer: 0 } : { q: `${r.items.length + 1}라운드` };
+      const blank = r.type === 'ox' ? { q: '', answer: 0 } : r.type === 'quiz' ? { q: '', choices: ['', '', '', ''], answer: 0 } : r.type === 'majority' ? { q: '', choices: ['', ''] } : r.type === 'estimate' ? { q: '', unit: '', answer: 0 } : { q: `${r.items.length + 1}라운드` };
       r.items.push(blank);
     }
     else if (act === 'del') r.items.splice(Number(el.dataset.qi), 1);
@@ -786,7 +799,7 @@ function hostApp() {
     if (s === 'reveal') requestAnimationFrame(() => document.querySelectorAll('.choice .bar').forEach(el => { el.style.width = el.dataset.w + '%'; }));
     if (((s === 'leaderboard' && !state.payload.blind) || s === 'final') && (!lastLb || lastLb.key !== lbKeyNow())) { if (lastLb && lastLb.key !== lbKeyNow()) lastLb = null; loadLeaderboard(); }
     if (s === 'final' && lastRevealKey !== 'final' + state.payload.step) { lastRevealKey = 'final' + state.payload.step; const st = Number(state.payload.step) || 0; if (st === 3) { confetti(280); setTimeout(() => confetti(220), 900); } else if (st > 0) confetti(70); }
-    if (s === 'reveal' && lastRevealKey !== state.payload.round_key) { lastRevealKey = state.payload.round_key; if (state.payload.result?.golden) { confetti(200); setTimeout(() => confetti(150), 600); } else if ((state.payload.result?.type === 'quiz' && state.payload.result.correctCount > 0) || state.payload.result?.winner || state.payload.result?.top?.length) confetti(90); }
+    if (s === 'reveal' && lastRevealKey !== state.payload.round_key) { lastRevealKey = state.payload.round_key; if (state.payload.result?.golden) { confetti(200); setTimeout(() => confetti(150), 600); } else if (((state.payload.result?.type === 'quiz' || state.payload.result?.type === 'ox') && state.payload.result.correctCount > 0) || state.payload.result?.winner || state.payload.result?.top?.length) confetti(90); }
     manageTimers();
   };
 
@@ -894,11 +907,12 @@ function guestApp() {
     const key = state.payload.round_key, done = answeredKey(key);
     const head = `<div class="g-tbar"><i id="g-tbar" style="width:100%"></i></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="chip">${esc(r.emoji || '')} Q${state.q_idx + 1}/${r.items.length}</span><span class="g-sec num" id="g-sec">${r.seconds}초</span></div>`;
     if (done) {
-      let picked = ''; try { const a = JSON.parse(done); picked = a.c !== undefined ? (it.choices?.[a.c] ?? '') : a.n; } catch (e) {}
+      let picked = ''; try { const a = JSON.parse(done); picked = a.c !== undefined ? (r.type === 'ox' ? OX[a.c] : (it.choices?.[a.c] ?? '')) : a.n; } catch (e) {}
       return head + `<div class="gq">${esc(it.q)}</div><div class="done card"><div class="ck pop">✓</div><h2 style="font-size:28px">접수 완료!</h2><p class="muted">내 답: <b>${esc(picked)}</b></p><p class="tiny">결과는 큰 화면과 함께 공개됩니다</p></div>`;
     }
     let body = '';
-    if (r.type === 'quiz') body = `<div class="gchoices">${it.choices.map((c, i) => `<button class="gchoice c${i} ${submitting ? 'dis' : ''}" data-act="pick" data-i="${i}"><span class="sym">${SYM[i]}</span><span>${esc(c)}</span></button>`).join('')}</div>`;
+    if (r.type === 'ox') body = `<div class="gchoices"><button class="gchoice ox c1 ${submitting ? 'dis' : ''}" data-act="pick" data-i="0">⭕</button><button class="gchoice ox c0 ${submitting ? 'dis' : ''}" data-act="pick" data-i="1">❌</button></div>`;
+    else if (r.type === 'quiz') body = `<div class="gchoices">${it.choices.map((c, i) => `<button class="gchoice c${i} ${submitting ? 'dis' : ''}" data-act="pick" data-i="${i}"><span class="sym">${SYM[i]}</span><span>${esc(c)}</span></button>`).join('')}</div>`;
     else if (r.type === 'majority') body = `<p class="tiny">내 취향이 아니라 "다수가 고를 쪽"!</p><div class="gchoices">${it.choices.map((c, i) => `<button class="gchoice two c${i} ${submitting ? 'dis' : ''}" data-act="pick" data-i="${i}">${esc(c)}</button>`).join('')}</div>`;
     else {
       const min = r.type === 'uniquemin' ? 1 : 0, max = r.type === 'estimate' ? '' : 100;
@@ -912,7 +926,8 @@ function guestApp() {
     const r = curRound(), it = curItem(), R = state.payload.result || {}; if (!r || !it) return '';
     const pts = myScore ? myScore.points : 0, answered = !!answeredKey(state.payload.round_key);
     let detail = '';
-    if (R.type === 'quiz') detail = `정답: <b>${SYM[R.answer]} ${esc(it.choices[R.answer])}</b> · 정답자 ${R.correctCount}명${myScore?.detail?.ok ? ` · 내 기록 ${(myScore.detail.ms / 1000).toFixed(2)}초` : ''}`;
+    if (R.type === 'ox') detail = `정답: <b>${OX[R.answer]}</b> · 정답자 ${R.correctCount}명${myScore?.detail?.ok ? ` · 내 기록 ${(myScore.detail.ms / 1000).toFixed(2)}초` : ''}`;
+    else if (R.type === 'quiz') detail = `정답: <b>${SYM[R.answer]} ${esc(it.choices[R.answer])}</b> · 정답자 ${R.correctCount}명${myScore?.detail?.ok ? ` · 내 기록 ${(myScore.detail.ms / 1000).toFixed(2)}초` : ''}`;
     else if (R.type === 'majority') detail = R.majority === -1 ? '동점! 모두 정답 처리 🤝' : `다수의 선택: <b>${esc(it.choices[R.majority])}</b> (${R.counts[R.majority]}명 vs ${R.counts[1 - R.majority]}명)`;
     else if (R.type === 'estimate' || R.type === 'twothirds') detail = `${R.type === 'twothirds' ? `평균 ${fmt(R.avg)} × 2/3 = ` : '정답 '}<b>${fmt(R.target)}${esc(R.unit || '')}</b> · 가장 근접 ${R.winnerCount || 0}명${myScore?.detail ? ` · 내 답 ${fmt(myScore.detail.n)} (${myScore.detail.rank === 1 ? '🎯 정답!' : myScore.detail.rank + '위'})` : ''}`;
     else detail = R.winner ? `👑 ${esc(R.winner.name)} · 숫자 <b>${R.winner.n}</b>${myScore?.detail ? ` · 내 숫자 ${myScore.detail.n} (${myScore.detail.unique ? '유일!' : '겹침'})` : ''}` : '모두 겹쳐서 승자 없음 😱';
