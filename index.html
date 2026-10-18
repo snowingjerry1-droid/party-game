@@ -160,6 +160,17 @@ input::placeholder{color:var(--dim)}
 .climber .mv{margin-left:auto;font-family:var(--display);color:var(--mint);font-size:1.2em}
 .choice.ox{justify-content:center;font-size:clamp(44px,7vw,96px);min-height:190px}
 .gchoice.ox{font-size:60px;min-height:180px}
+.choices.img{grid-template-columns:repeat(4,1fr);gap:14px}
+.choices.img .choice{flex-direction:column;align-items:stretch;padding:10px;gap:8px;min-height:0;font-size:clamp(18px,2vw,28px)}
+.choice > :not(.bar):not(.ok){position:relative}
+.pic{background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.choices.img .pic{height:clamp(140px,34vh,360px);padding:8px}
+.pic svg{width:100%;height:100%;display:block}
+.pic img{max-width:100%;max-height:100%;display:block;object-fit:contain}
+.pichead{display:flex;align-items:center;gap:10px}
+.pichead .cnt{margin-left:auto}
+.thumb{width:76px;height:56px;flex:none;padding:3px}
+.opt.withimg .btn.sm{padding:6px 10px;flex:none}
 .warn{background:rgba(255,94,108,.12);border:1px solid rgba(255,94,108,.4);padding:12px 14px;border-radius:12px;color:#ffb3ba;font-size:14px}
 .info{background:rgba(63,169,245,.12);border:1px solid rgba(63,169,245,.4);padding:12px 14px;border-radius:12px;color:#bfe3ff;font-size:14px}
 
@@ -203,6 +214,7 @@ input::placeholder{color:var(--dim)}
 .link{color:var(--sky);text-decoration:underline;cursor:pointer}
 
 @media (max-width:860px){
+  .choices.img{grid-template-columns:1fr 1fr}
   .lobby,.result,.grid2{grid-template-columns:1fr}
   .stage{padding:18px 16px}
   .hbar{padding:10px 14px}
@@ -246,51 +258,471 @@ function toast(msg, ms = 2400) {
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms);
 }
 const SYM = ['▲', '◆', '●', '■'];
+/* ===================== 사진 문제: 직접 그린 진짜/가짜 그림 (SVG) ===================== */
+let svgUid = 0;
+const MIRROR = 'translate(200,0) scale(-1,1)';
+const PRESETS = {
+  // 애플 로고: 진짜는 한입 베어 문 자국이 오른쪽, 잎이 오른쪽 위로 기울어짐
+  apple: {
+    label: '애플 로고',
+    variants: { real: {}, mirror: { biteLeft: true, leafLeft: true }, leafLeft: { leafLeft: true }, biteLeft: { biteLeft: true } },
+    draw(v) {
+      const id = 'bite' + (++svgUid);
+      const body = 'M100,74 C84,62 46,58 31,96 C16,136 38,204 70,213 C83,216 91,207 100,207 C109,207 117,216 130,213 C162,204 184,136 169,96 C154,58 116,62 100,74 Z';
+      const leaf = 'M101,60 C99,36 115,14 141,8 C143,34 127,56 101,60 Z';
+      return `<svg viewBox="0 0 200 230" xmlns="http://www.w3.org/2000/svg"><defs><mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="230"><rect width="200" height="230" fill="#fff"/><circle cx="188" cy="128" r="30" fill="#000"/></mask></defs>
+        <g transform="${v.biteLeft ? MIRROR : ''}"><path d="${body}" fill="#1d1d1f" mask="url(#${id})"/></g>
+        <g transform="${v.leafLeft ? MIRROR : ''}"><path d="${leaf}" fill="#1d1d1f"/></g></svg>`;
+    },
+  },
+  // 태극기: 빨강 위·파랑 아래, 빨강 머리가 왼쪽. 건(☰) 왼쪽 위, 곤(☷) 오른쪽 아래, 감(☵) 오른쪽 위, 리(☲) 왼쪽 아래
+  taegeuk: {
+    label: '태극기',
+    variants: { real: {}, swapColors: { swapColors: true }, swapGamRi: { swapGamRi: true }, mirrorTaeguk: { mirrorTaeguk: true } },
+    draw(v) {
+      const W = 300, H = 200, cx = 150, cy = 100, D = 100, R = 50;
+      const th = Math.atan2(2, 3), c = Math.cos(th), s = Math.sin(th);
+      const f = n => Math.round(n * 100) / 100;
+      const P1 = `${f(cx - R * c)},${f(cy - R * s)}`, P2 = `${f(cx + R * c)},${f(cy + R * s)}`;
+      const s1 = v.mirrorTaeguk ? 1 : 0, s2 = v.mirrorTaeguk ? 0 : 1;
+      const top = v.swapColors ? '#0047A0' : '#CD2E3A', bottom = v.swapColors ? '#CD2E3A' : '#0047A0';
+      const red = `M${P1} A${R},${R} 0 0,1 ${P2} A${R / 2},${R / 2} 0 0,${s1} ${cx},${cy} A${R / 2},${R / 2} 0 0,${s2} ${P1} Z`;
+      const L = D / 2, bw = D / 12, gap = D / 24, dist = (11 * D) / 12;
+      const trig = (dx, dy, bars) => {
+        const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+        const x0 = f(cx + dist * dx), y0 = f(cy + dist * dy);
+        const offs = [-(bw + gap), 0, bw + gap];
+        let r = '';
+        bars.forEach((solid, k) => {
+          const x = f(offs[k] - bw / 2);
+          if (solid) r += `<rect x="${x}" y="${-L / 2}" width="${f(bw)}" height="${L}"/>`;
+          else r += `<rect x="${x}" y="${-L / 2}" width="${f(bw)}" height="${f(L / 2 - gap / 2)}"/><rect x="${x}" y="${f(gap / 2)}" width="${f(bw)}" height="${f(L / 2 - gap / 2)}"/>`;
+        });
+        return `<g transform="translate(${x0},${y0}) rotate(${f(ang)})" fill="#000">${r}</g>`;
+      };
+      const GAM = [false, true, false], RI = [true, false, true];
+      const ur = v.swapGamRi ? RI : GAM, ll = v.swapGamRi ? GAM : RI;
+      return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fff" stroke="#d6d6d6" stroke-width="2"/>
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="${bottom}"/><path d="${red}" fill="${top}"/>
+        ${trig(-c, -s, [true, true, true])}${trig(c, s, [false, false, false])}${trig(c, -s, ur)}${trig(-c, s, ll)}</svg>`;
+    },
+  },
+  // 오륜기: 위 파랑·검정·빨강, 아래 노랑·초록
+  rings: {
+    label: '오륜기',
+    variants: { real: {}, topSwap: { top: ['#0081C8', '#EE334E', '#000000'] }, bottomSwap: { bottom: ['#00A651', '#FCB131'] }, blackFirst: { top: ['#000000', '#0081C8', '#EE334E'] } },
+    draw(v) {
+      const top = v.top || ['#0081C8', '#000000', '#EE334E'], bottom = v.bottom || ['#FCB131', '#00A651'];
+      const ring = (x, y, col) => `<circle cx="${x}" cy="${y}" r="30" fill="none" stroke="${col}" stroke-width="7"/>`;
+      return `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#fff"/>${ring(60, 52, top[0])}${ring(130, 52, top[1])}${ring(200, 52, top[2])}${ring(95, 86, bottom[0])}${ring(165, 86, bottom[1])}</svg>`;
+    },
+  },
+  // 두벌식 한글 자판 왼쪽 자음 부분 (프로젝터에서 잘 보이게 크게)
+  hangulkb: {
+    label: "한글 자판",
+    variants: { real: {}, swapTop: { swap: [0, 2, 3] }, swapMid: { swap: [1, 1, 2] }, swapBottom: { swap: [2, 1, 2] } },
+    draw(v) {
+      const rows = [["ㅂ", "ㅈ", "ㄷ", "ㄱ", "ㅅ"], ["ㅁ", "ㄴ", "ㅇ", "ㄹ", "ㅎ"], ["ㅋ", "ㅌ", "ㅊ", "ㅍ", "ㅠ"]];
+      if (v.swap) { const [ri, x, y] = v.swap; [rows[ri][x], rows[ri][y]] = [rows[ri][y], rows[ri][x]]; }
+      const K = 30, G = 4, offs = [6, 15, 30];
+      let out = "";
+      rows.forEach((row, ri) => row.forEach((k, ki) => {
+        const x = offs[ri] + ki * (K + G), y = 7 + ri * (K + G);
+        out += `<rect x="${x}" y="${y}" width="${K}" height="${K}" rx="5" fill="#f3f3f6" stroke="#b9b9c6"/><text x="${x + K / 2}" y="${y + K / 2 + 7}" text-anchor="middle" font-size="19" font-weight="700" fill="#222" font-family="'Noto Sans KR',sans-serif">${k}</text>`;
+      }));
+      return `<svg viewBox="0 0 206 110" xmlns="http://www.w3.org/2000/svg"><rect width="206" height="110" rx="8" fill="#dcdce4"/>${out}</svg>`;
+    },
+  },
+  // 휴대폰 전화 키패드: 1 2 3이 맨 위
+  keypad: {
+    label: '전화 키패드',
+    variants: { real: {}, calc: { rows: ['789', '456', '123', '*0#'] }, zeroLeft: { rows: ['123', '456', '789', '0*#'] }, reversed: { rows: ['321', '654', '987', '#0*'] } },
+    draw(v) {
+      const rows = v.rows || ['123', '456', '789', '*0#'];
+      let out = '';
+      rows.forEach((row, ri) => [...row].forEach((k, ki) => {
+        const x = 20 + ki * 56, y = 14 + ri * 50;
+        out += `<circle cx="${x + 22}" cy="${y + 20}" r="21" fill="#2c2c34"/><text x="${x + 22}" y="${y + 28}" text-anchor="middle" font-size="22" fill="#fff" font-family="system-ui,sans-serif">${k}</text>`;
+      }));
+      return `<svg viewBox="0 0 208 214" xmlns="http://www.w3.org/2000/svg"><rect width="208" height="214" rx="16" fill="#111116"/>${out}</svg>`;
+    },
+  },
+};
+function presetSVG(src) {
+  const [, name, variant] = String(src).split(':');
+  const p = PRESETS[name]; if (!p) return '';
+  return p.draw(p.variants[variant] || {});
+}
+
+const hasImages = it => Array.isArray(it?.images) && it.images.some(Boolean);
+const mediaCache = {}; // 진행자 화면만 사용 (참가자 폰은 사진을 받지 않음)
+function picHTML(src) {
+  if (!src) return '<span style="color:#999;font-size:14px">사진 없음</span>';
+  if (src.startsWith('preset:')) return presetSVG(src);
+  if (src.startsWith('media:')) {
+    const d = mediaCache[src.slice(6)];
+    if (d === undefined) return '<span class="pulse" style="color:#999;font-size:14px">불러오는 중…</span>';
+    return d ? `<img src="${esc(d)}" alt="">` : '<span style="color:#999;font-size:14px">사진 없음</span>';
+  }
+  return '';
+}
 const fmt = n => Number(n).toLocaleString('ko-KR');
 
 /* ===================== 게임 콘텐츠 (진행자가 편집 가능, DB에 저장) ===================== */
 const DEFAULT_ROUNDS = [
-  { key: 'quiz', type: 'quiz', title: '스피드 퀴즈', emoji: '⚡', seconds: 20, enabled: true, mult: 1,
-    rule: '문제가 뜨면 폰에서 정답을 고르세요. 맞히면 500점, 빨리 맞힐수록 최대 1000점!',
-    items: [
-      { q: '세종대왕이 훈민정음을 반포한 해는?', choices: ['1443년', '1446년', '1450년', '1392년'], answer: 1 },
-      { q: '올림픽 오륜기에 없는 색은?', choices: ['파랑', '노랑', '보라', '초록'], answer: 2 },
-      { q: '지구에서 가장 가까운 별은?', choices: ['북극성', '시리우스', '태양', '프록시마 센타우리'], answer: 2 },
-      { q: '피자를 8등분해서 3조각 먹으면 전체의 몇 %?', choices: ['30%', '33%', '37.5%', '40%'], answer: 2 },
-      { q: '커피 생산량 세계 1위 국가는?', choices: ['콜롬비아', '베트남', '에티오피아', '브라질'], answer: 3 },
-      { q: '한글 기본 자음은 몇 개?', choices: ['10개', '14개', '19개', '24개'], answer: 1 },
-      { q: '무지개 색 순서(빨주노초파남보)에서 네 번째 색은?', choices: ['노랑', '초록', '파랑', '남색'], answer: 1 },
-      { q: '남한에서 가장 긴 강은?', choices: ['한강', '낙동강', '금강', '영산강'], answer: 1 },
-    ] },
-  { key: 'major', type: 'majority', title: '다수결 예측', emoji: '👀', seconds: 15, enabled: true, mult: 1,
-    rule: '내 취향은 잠시 접어두고, 이 방에서 "더 많은 사람이 고를 쪽"을 맞히세요. 맞히면 800점!',
-    items: [
-      { q: '짜장면 vs 짬뽕', choices: ['짜장면', '짬뽕'] },
-      { q: '탕수육은?', choices: ['부먹', '찍먹'] },
-      { q: '민트초코는?', choices: ['호 (맛있다)', '불호 (치약이다)'] },
-      { q: '평생 한 계절만 살아야 한다면?', choices: ['여름', '겨울'] },
-      { q: '10억 받고 10년 동안 핸드폰 없이 살기', choices: ['한다', '안 한다'] },
-    ] },
-  { key: 'est', type: 'estimate', title: '숫자 맞히기', emoji: '🎯', seconds: 25, enabled: true, mult: 2,
-    rule: '정답 숫자에 가장 가까운 사람이 정답! 똑같이 가까우면 모두 정답이에요. 정답 1000점, 상위 10% 600점, 상위 30% 300점.',
-    items: [
-      { q: '롯데월드타워의 높이는 몇 m일까?', unit: 'm', answer: 555 },
-      { q: '전통 축구공(검은 오각형 + 흰 육각형)은 가죽 조각이 모두 몇 개일까?', unit: '개', answer: 32 },
-      { q: '대한민국이 올림픽에서 처음 금메달을 딴 해는?', unit: '년', answer: 1976 },
-    ] },
-  { key: 'ox', type: 'ox', title: 'OX 퀴즈', emoji: '⭕', seconds: 15, enabled: true, mult: 2,
-    rule: 'O 아니면 X! 맞히면 500점, 빨리 맞힐수록 최대 1000점. 몰라도 반은 맞힐 수 있어요!',
-    items: [
-      { q: '문어는 심장이 3개다', answer: 0 },
-      { q: '금붕어의 기억력은 3초밖에 안 된다', answer: 1 },
-      { q: '바나나는 나무가 아니라 풀에서 열린다', answer: 0 },
-    ] },
-  { key: 'umin', type: 'uniquemin', title: '유일한 최소 숫자', emoji: '🦄', seconds: 25, enabled: true, mult: 2,
-    rule: '1~100 중 아무도 안 고른 가장 작은 숫자를 낸 사람이 1000점! 겹치지만 않아도 200점.',
-    items: [{ q: '1라운드' }, { q: '2라운드 · 진짜 눈치 싸움' }] },
+ {
+  "key": "quiz",
+  "mult": 1,
+  "rule": "문제가 뜨면 폰에서 정답을 고르세요. 맞히면 500점, 빨리 맞힐수록 최대 1000점!",
+  "type": "quiz",
+  "emoji": "⚡",
+  "items": [
+   {
+    "q": "세종대왕이 훈민정음을 반포한 해는?",
+    "answer": 1,
+    "choices": [
+     "1443년",
+     "1446년",
+     "1450년",
+     "1392년"
+    ]
+   },
+   {
+    "q": "올림픽 오륜기에 없는 색은?",
+    "answer": 2,
+    "choices": [
+     "파랑",
+     "노랑",
+     "보라",
+     "초록"
+    ]
+   },
+   {
+    "q": "지구에서 가장 가까운 별은?",
+    "answer": 2,
+    "choices": [
+     "북극성",
+     "시리우스",
+     "태양",
+     "프록시마 센타우리"
+    ]
+   },
+   {
+    "q": "피자를 8등분해서 3조각 먹으면 전체의 몇 %?",
+    "answer": 2,
+    "choices": [
+     "30%",
+     "33%",
+     "37.5%",
+     "40%"
+    ]
+   },
+   {
+    "q": "커피 생산량 세계 1위 국가는?",
+    "answer": 3,
+    "choices": [
+     "콜롬비아",
+     "베트남",
+     "에티오피아",
+     "브라질"
+    ]
+   },
+   {
+    "q": "한글 기본 자음은 몇 개?",
+    "answer": 1,
+    "choices": [
+     "10개",
+     "14개",
+     "19개",
+     "24개"
+    ]
+   },
+   {
+    "q": "무지개 색 순서(빨주노초파남보)에서 네 번째 색은?",
+    "answer": 1,
+    "choices": [
+     "노랑",
+     "초록",
+     "파랑",
+     "남색"
+    ]
+   },
+   {
+    "q": "남한에서 가장 긴 강은?",
+    "answer": 1,
+    "choices": [
+     "한강",
+     "낙동강",
+     "금강",
+     "영산강"
+    ]
+   },
+   {
+    "q": "우리나라 최초의 라면은?",
+    "choices": [
+     "신라면",
+     "안성탕면",
+     "진라면",
+     "삼양라면"
+    ],
+    "answer": 3
+   },
+   {
+    "q": "500원 동전에 그려진 것은?",
+    "choices": [
+     "학",
+     "거북선",
+     "벼",
+     "다보탑"
+    ],
+    "answer": 0
+   },
+   {
+    "q": "QR코드의 ‘QR’은 무엇의 줄임말일까요?",
+    "choices": [
+     "Quality Rate",
+     "Quick Response",
+     "Question Reply",
+     "Quick Read"
+    ],
+    "answer": 1
+   },
+   {
+    "q": "높은 산에서 밥을 지으면 설익는 이유는?",
+    "choices": [
+     "산소 부족",
+     "물의 끓는점이 낮아서",
+     "바람 때문에",
+     "습도 때문에"
+    ],
+    "answer": 1
+   },
+   {
+    "q": "우리나라 국회의원은 몇 명?",
+    "choices": [
+     "300명",
+     "200명",
+     "250명",
+     "350명"
+    ],
+    "answer": 0
+   }
+  ],
+  "title": "스피드 퀴즈",
+  "enabled": true,
+  "seconds": 15
+ },
+ {
+  "key": "major",
+  "mult": 1,
+  "rule": "내 취향은 잠시 접어두고, 이 방에서 \"더 많은 사람이 고를 쪽\"을 맞히세요. 맞히면 800점!",
+  "type": "majority",
+  "emoji": "👀",
+  "items": [
+   {
+    "q": "짜장면 vs 짬뽕",
+    "choices": [
+     "짜장면",
+     "짬뽕"
+    ]
+   },
+   {
+    "q": "탕수육은?",
+    "choices": [
+     "부먹",
+     "찍먹"
+    ]
+   },
+   {
+    "q": "민트초코는?",
+    "choices": [
+     "호 (맛있다)",
+     "불호 (치약이다)"
+    ]
+   },
+   {
+    "q": "평생 한 계절만 살아야 한다면?",
+    "choices": [
+     "여름",
+     "겨울"
+    ]
+   },
+   {
+    "q": "30억 받고 10년 동안 핸드폰 없이 살기",
+    "choices": [
+     "한다",
+     "안 한다"
+    ]
+   }
+  ],
+  "title": "다수결 예측",
+  "enabled": true,
+  "seconds": 10
+ },
+ {
+  "key": "photo",
+  "type": "quiz",
+  "title": "진짜를 찾아라",
+  "emoji": "🔍",
+  "seconds": 15,
+  "enabled": true,
+  "mult": 1,
+  "rule": "큰 화면에 비슷한 그림 4장! 진짜 하나를 찾아서 폰에서 같은 색 버튼을 누르세요. 맞히면 500점, 빨리 맞힐수록 최대 1000점!",
+  "items": [
+   {
+    "q": "진짜 애플 로고는?",
+    "choices": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "images": [
+     "preset:apple:leafLeft",
+     "preset:apple:biteLeft",
+     "preset:apple:real",
+     "preset:apple:mirror"
+    ],
+    "answer": 2
+   },
+   {
+    "q": "진짜 태극기는?",
+    "choices": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "images": [
+     "preset:taegeuk:swapGamRi",
+     "preset:taegeuk:real",
+     "preset:taegeuk:mirrorTaeguk",
+     "preset:taegeuk:swapColors"
+    ],
+    "answer": 1
+   },
+   {
+    "q": "진짜 올림픽 오륜기는?",
+    "choices": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "images": [
+     "preset:rings:topSwap",
+     "preset:rings:blackFirst",
+     "preset:rings:bottomSwap",
+     "preset:rings:real"
+    ],
+    "answer": 3
+   },
+   {
+    "q": "진짜 한글 키보드 자판은? (왼쪽 부분)",
+    "choices": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "images": [
+     "preset:hangulkb:real",
+     "preset:hangulkb:swapMid",
+     "preset:hangulkb:swapTop",
+     "preset:hangulkb:swapBottom"
+    ],
+    "answer": 0
+   },
+   {
+    "q": "진짜 휴대폰 전화 키패드는?",
+    "choices": [
+     "",
+     "",
+     "",
+     ""
+    ],
+    "images": [
+     "preset:keypad:calc",
+     "preset:keypad:reversed",
+     "preset:keypad:real",
+     "preset:keypad:zeroLeft"
+    ],
+    "answer": 2
+   }
+  ]
+ },
+ {
+  "key": "est",
+  "mult": 2,
+  "rule": "정답 숫자에 가장 가까운 사람이 정답! 똑같이 가까우면 모두 정답이에요. 정답 1000점, 상위 10% 600점, 상위 30% 300점.",
+  "type": "estimate",
+  "emoji": "🎯",
+  "items": [
+   {
+    "q": "롯데월드타워의 높이는 몇 m일까?",
+    "unit": "m",
+    "answer": 555
+   },
+   {
+    "q": "전통 축구공(검은 오각형 + 흰 육각형)은 가죽 조각이 모두 몇 개일까?",
+    "unit": "개",
+    "answer": 32
+   },
+   {
+    "q": "대한민국이 올림픽에서 처음 금메달을 딴 해는?",
+    "unit": "년",
+    "answer": 1976
+   }
+  ],
+  "title": "숫자 맞히기",
+  "enabled": true,
+  "seconds": 20
+ },
+ {
+  "key": "ox",
+  "mult": 2,
+  "rule": "O 아니면 X! 맞히면 500점, 빨리 맞힐수록 최대 1000점. 몰라도 반은 맞힐 수 있어요!",
+  "type": "ox",
+  "emoji": "⭕",
+  "items": [
+   {
+    "q": "문어는 심장이 3개다",
+    "answer": 0
+   },
+   {
+    "q": "금붕어의 기억력은 3초밖에 안 된다",
+    "answer": 1
+   },
+   {
+    "q": "바나나는 나무가 아니라 풀에서 열린다",
+    "answer": 0
+   }
+  ],
+  "title": "OX 퀴즈",
+  "enabled": true,
+  "seconds": 10
+ },
+ {
+  "key": "umin",
+  "mult": 2,
+  "rule": "1~100 중 아무도 안 고른 가장 작은 숫자를 낸 사람이 1000점! 겹치지만 않아도 200점.",
+  "type": "uniquemin",
+  "emoji": "🦄",
+  "items": [
+   {
+    "q": "1라운드"
+   },
+   {
+    "q": "2라운드 · 진짜 눈치 싸움"
+   }
+  ],
+  "title": "유일한 최소 숫자",
+  "enabled": true,
+  "seconds": 20
+ }
 ];
 const OX = ['⭕', '❌'];
-const TYPE_LABEL = { ox: 'OX 퀴즈', quiz: '스피드 퀴즈 (4지선다)', majority: '다수결 예측 (2택)', estimate: '숫자 맞히기', twothirds: '평균의 2/3', uniquemin: '유일한 최소 숫자' };
+const TYPE_LABEL = { ox: 'OX 퀴즈', quiz: '스피드 퀴즈 (4지선다 · 사진 가능)', majority: '다수결 예측 (2택)', estimate: '숫자 맞히기', twothirds: '평균의 2/3', uniquemin: '유일한 최소 숫자' };
 // 게임 설정: 황금 문제(숨겨진 배율) · 블라인드(순위 비공개) 시작 라운드
 const DEFAULT_SETTINGS = { golden: 3, goldenX: 2, blindFrom: 'ox' };
 // 숫자형 라운드 점수: 1위(동점 모두) 1000 · 상위 10% 600 · 상위 30% 300
@@ -448,6 +880,33 @@ function hostApp() {
     mroot.innerHTML = modal === 'editor' ? viewEditor() : modal === 'players' ? viewPlayersModal() : modal === 'reset' ? viewResetModal() : '';
   }
   const markModal = () => { modalDirty = true; };
+  const mediaLoading = new Set();
+  function ensureMedia(list) {
+    const ids = (list || []).filter(s => typeof s === 'string' && s.startsWith('media:')).map(s => s.slice(6)).filter(id => !(id in mediaCache) && !mediaLoading.has(id));
+    if (!ids.length || !pinOk) return;
+    ids.forEach(id => mediaLoading.add(id));
+    sb.rpc('host_get_media', { p_pin: pin, p_ids: ids }).then(({ data }) => {
+      (data || []).forEach(r => { mediaCache[r.id] = r.data; });
+      ids.forEach(id => { if (!(id in mediaCache)) mediaCache[id] = ''; mediaLoading.delete(id); });
+      markModal(); render();
+    });
+  }
+  function shrinkImage(file, max = 900) {
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        let q = 0.85, d = c.toDataURL('image/jpeg', q);
+        while (d.length > 1400000 && q > 0.4) { q -= 0.15; d = c.toDataURL('image/jpeg', q); }
+        res(d);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('이미지를 읽을 수 없어요')); };
+      img.src = url;
+    });
+  }
 
   const rpc = async (fn, args) => { const { data, error } = await sb.rpc(fn, { p_pin: pin, ...args }); if (error) { toast('오류: ' + error.message); throw error; } return data; };
   const setStatus = (status, ri, qi, payload = {}, seconds = 0) => rpc('host_set_state', { p_status: status, p_round_idx: ri, p_q_idx: qi, p_seconds: seconds, p_payload: payload }).then(setState);
@@ -603,6 +1062,7 @@ function hostApp() {
     const r = curRound(), it = curItem(); if (!r || !it) return '';
     let body = '';
     if (r.type === 'ox') body = `<div class="choices"><div class="choice c1 ox">⭕</div><div class="choice c0 ox">❌</div></div>`;
+    else if (r.type === 'quiz' && hasImages(it)) body = `<div class="choices img">${[0, 1, 2, 3].map(i => `<div class="choice c${i}"><div class="pichead"><span class="sym">${SYM[i]}</span><span>${esc(it.choices?.[i] || '')}</span></div><div class="pic">${picHTML(it.images[i])}</div></div>`).join('')}</div>`;
     else if (r.type === 'quiz') body = `<div class="choices">${it.choices.map((c, i) => `<div class="choice c${i}"><span class="sym">${SYM[i]}</span><span>${esc(c)}</span></div>`).join('')}</div>`;
     else if (r.type === 'majority') body = `<div class="choices">${it.choices.map((c, i) => `<div class="choice c${i}" style="min-height:140px;justify-content:center;font-size:clamp(26px,3.6vw,48px)">${esc(c)}</div>`).join('')}</div>`;
     else if (r.type === 'estimate') body = `<div class="intro"><div class="emoji">🎯</div><p class="rule">폰에 숫자를 입력하세요 (단위: ${esc(it.unit || '')})<br>가장 가까운 사람이 정답! 똑같이 가까우면 모두 정답</p></div>`;
@@ -611,7 +1071,7 @@ function hostApp() {
     return `<div class="center">
       <div class="qhead"><div class="chip">${esc(r.emoji || '')} ${esc(r.title)} · Q${state.q_idx + 1}/${r.items.length}</div>
         <div class="timer"><div class="tbar" style="width:min(360px,40vw)"><i id="h-tbar" style="width:100%"></i></div><div class="n num" id="h-timer">${r.seconds}</div></div></div>
-      <div class="qtext">${esc(it.q)}</div>
+      <div class="qtext" ${hasImages(it) ? 'style="font-size:clamp(26px,3.6vw,48px);margin:4px 0 16px"' : ''}>${esc(it.q)}</div>
       ${body}
       <div class="answered">응답 <b class="num" id="h-answered">${answeredCount}</b> / <b class="num">${players.length}</b> 명</div>
     </div>`;
@@ -623,6 +1083,9 @@ function hostApp() {
     if (R.type === 'ox') {
       body = `<div class="choices">${[1, 0].map((cls, i) => `<div class="choice c${cls} ox ${i === R.answer ? 'right' : 'wrong'}"><i class="bar" data-w="${(R.counts?.[i] || 0) / total * 100}"></i><span>${OX[i]}</span><span class="cnt num" style="font-size:.45em">${R.counts?.[i] || 0}명</span></div>`).join('')}</div>
         <div class="answered">정답 <b>${OX[R.answer]}</b> · 정답자 <b class="num">${R.correctCount || 0}</b>명 ${R.fastest ? `· ⚡ 최고 속도 <b>${esc(R.fastest.name)}</b> <span class="num">(${(R.fastest.ms / 1000).toFixed(2)}초)</span>` : ''}</div>`;
+    } else if (R.type === 'quiz' && hasImages(it)) {
+      body = `<div class="choices img">${[0, 1, 2, 3].map(i => `<div class="choice c${i} ${i === R.answer ? 'right' : 'wrong'}"><i class="bar" data-w="${(R.counts?.[i] || 0) / total * 100}"></i><div class="pichead"><span class="sym">${SYM[i]}</span><span>${esc(it.choices?.[i] || '')}</span><span class="cnt num">${R.counts?.[i] || 0}</span>${i === R.answer ? '<span>✅</span>' : ''}</div><div class="pic">${picHTML(it.images[i])}</div></div>`).join('')}</div>
+        <div class="answered">정답자 <b class="num">${R.correctCount || 0}</b>명 ${R.fastest ? `· ⚡ 최고 속도 <b>${esc(R.fastest.name)}</b> <span class="num">(${(R.fastest.ms / 1000).toFixed(2)}초)</span>` : ''}</div>`;
     } else if (R.type === 'quiz') {
       body = `<div class="choices">${it.choices.map((c, i) => `<div class="choice c${i} ${i === R.answer ? 'right' : 'wrong'}"><i class="bar" data-w="${(R.counts?.[i] || 0) / total * 100}"></i><span class="sym">${SYM[i]}</span><span>${esc(c)}</span><span class="cnt num">${R.counts?.[i] || 0}</span>${i === R.answer ? '<span class="ok">✅</span>' : ''}</div>`).join('')}</div>
         <div class="answered">정답자 <b class="num">${R.correctCount || 0}</b>명 ${R.fastest ? `· ⚡ 최고 속도 <b>${esc(R.fastest.name)}</b> <span class="num">(${(R.fastest.ms / 1000).toFixed(2)}초)</span>` : ''}</div>`;
@@ -683,6 +1146,7 @@ function hostApp() {
       <div class="tiny" style="text-align:left">황금 문제 위치는 다음 "게임 시작" 때 새로 뽑힙니다.</div>`;
   }
   function viewEditor() {
+    ensureMedia(draft.flatMap(x => x.items.flatMap(y => y.images || [])));
     const r = tab === 'settings' ? null : draft[tab];
     if (!r) return editorShell(viewSettings());
     const items = r.items.map((it, qi) => {
@@ -690,7 +1154,7 @@ function hostApp() {
       if (r.type === 'ox') body = `<div class="field"><label>문제 (O 또는 X로 답할 수 있는 문장)</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
         <div class="opts">${[0, 1].map(i => `<label class="opt" style="font-weight:700"><input type="radio" name="ans-${tab}-${qi}" data-p="${tab}.items.${qi}.answer" data-v="${i}" ${Number(it.answer) === i ? 'checked' : ''}> 정답 ${OX[i]}</label>`).join('')}</div>`;
       else if (r.type === 'quiz') body = `<div class="field"><label>문제</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
-        <div class="opts">${[0, 1, 2, 3].map(i => `<div class="opt"><i style="background:var(--c${i})"></i><input type="radio" name="ans-${tab}-${qi}" data-p="${tab}.items.${qi}.answer" data-v="${i}" ${Number(it.answer) === i ? 'checked' : ''} title="정답"><input data-p="${tab}.items.${qi}.choices.${i}" value="${esc(it.choices?.[i] ?? '')}" placeholder="선택지 ${i + 1}"></div>`).join('')}</div><div class="tiny" style="text-align:left">라디오 버튼으로 정답을 표시하세요</div>`;
+        <div class="opts">${[0, 1, 2, 3].map(i => `<div class="opt withimg"><i style="background:var(--c${i})"></i><input type="radio" name="ans-${tab}-${qi}" data-p="${tab}.items.${qi}.answer" data-v="${i}" ${Number(it.answer) === i ? 'checked' : ''} title="정답"><input data-p="${tab}.items.${qi}.choices.${i}" value="${esc(it.choices?.[i] ?? '')}" placeholder="${hasImages(it) ? '설명 (비워도 됨)' : '선택지 ' + (i + 1)}">${it.images?.[i] ? `<div class="thumb pic">${picHTML(it.images[i])}</div><button class="btn sm ghost" data-act="rmimg" data-qi="${qi}" data-i="${i}" title="사진 빼기">✕</button>` : ''}<label class="btn sm" title="사진 넣기">📷<input type="file" accept="image/*" data-upload="${tab}.${qi}.${i}" hidden></label></div>`).join('')}</div><div class="tiny" style="text-align:left">라디오 버튼으로 정답을 표시하세요 · 📷로 사진을 넣으면 큰 화면에 사진 4장이 뜨고, 폰에는 같은 색 버튼만 나옵니다</div>`;
       else if (r.type === 'majority') body = `<div class="field"><label>질문</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
         <div class="opts">${[0, 1].map(i => `<div class="opt"><i style="background:var(--c${i})"></i><input data-p="${tab}.items.${qi}.choices.${i}" value="${esc(it.choices?.[i] ?? '')}" placeholder="선택지 ${i + 1}"></div>`).join('')}</div>`;
       else if (r.type === 'estimate') body = `<div class="field"><label>질문</label><input data-p="${tab}.items.${qi}.q" value="${esc(it.q)}"></div>
@@ -740,7 +1204,8 @@ function hostApp() {
     const r = tab === 'settings' ? null : draft[tab];
     if (act === 'close') { modal = null; draft = null; draftSettings = null; }
     else if (act === 'tab') tab = el.dataset.i === 'settings' ? 'settings' : Number(el.dataset.i);
-    else if (!r && ['add', 'del', 'up', 'down'].includes(act)) { /* 설정 탭에서는 무시 */ }
+    else if (!r && ['add', 'del', 'up', 'down', 'rmimg'].includes(act)) { /* 설정 탭에서는 무시 */ }
+    else if (act === 'rmimg') { const it = r.items[Number(el.dataset.qi)]; if (it && it.images) { it.images[Number(el.dataset.i)] = ''; if (!it.images.some(Boolean)) delete it.images; } }
     else if (act === 'add') {
       const blank = r.type === 'ox' ? { q: '', answer: 0 } : r.type === 'quiz' ? { q: '', choices: ['', '', '', ''], answer: 0 } : r.type === 'majority' ? { q: '', choices: ['', ''] } : r.type === 'estimate' ? { q: '', unit: '', answer: 0 } : { q: `${r.items.length + 1}라운드` };
       r.items.push(blank);
@@ -778,6 +1243,7 @@ function hostApp() {
     }
     if (!state || !contentLoaded) { app.innerHTML = '<div class="host"><div class="hbar"><div class="brand"><i></i>파티 게임 아레나</div></div><div class="stage"><h1 class="pulse" style="margin:auto;font-size:40px">연결 중…</h1></div><div class="hctl"></div></div>'; return; }
     const s = state.status;
+    { const r0 = curRound(); if (r0) ensureMedia(r0.items.flatMap(x => x.images || [])); }
     const statusName = { lobby: '대기실', intro: '라운드 소개', question: '문제 진행 중', reveal: '정답 공개', leaderboard: '순위', final: '최종 결과' }[s] || s;
     let stage = '';
     if (s === 'lobby') stage = viewLobby();
@@ -824,6 +1290,23 @@ function hostApp() {
   mroot.addEventListener('click', onClick);
   mroot.addEventListener('input', e => { if (modal === 'editor' && e.target.tagName !== 'SELECT') editorInput(e); });
   mroot.addEventListener('change', e => { if (modal === 'editor') editorInput(e); });
+  mroot.addEventListener('change', async e => {
+    const el = e.target;
+    if (modal !== 'editor' || !draft || !el.dataset || !el.dataset.upload || !el.files || !el.files[0]) return;
+    const [t, qi, i] = el.dataset.upload.split('.').map(Number);
+    try {
+      toast('사진 올리는 중…', 6000);
+      const data = await shrinkImage(el.files[0]);
+      const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      await rpc('host_save_media', { p_id: id, p_data: data });
+      mediaCache[id] = data;
+      const item = draft[t].items[qi];
+      item.images = Array.isArray(item.images) ? item.images : ['', '', '', ''];
+      item.images[i] = 'media:' + id;
+      if (!Array.isArray(item.choices)) item.choices = ['', '', '', ''];
+      markModal(); render(); toast('사진을 넣었어요. 저장을 눌러야 반영됩니다');
+    } catch (err) { toast('사진을 못 올렸어요: ' + (err?.message || err)); }
+  });
   mroot.addEventListener('keydown', e => { if (modal === 'editor' && e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); });
   document.addEventListener('keydown', e => { if (!modal && pinOk && e.key === 'ArrowRight' && !/INPUT|TEXTAREA/.test(e.target.tagName)) { e.preventDefault(); next(); } });
 
@@ -907,12 +1390,12 @@ function guestApp() {
     const key = state.payload.round_key, done = answeredKey(key);
     const head = `<div class="g-tbar"><i id="g-tbar" style="width:100%"></i></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="chip">${esc(r.emoji || '')} Q${state.q_idx + 1}/${r.items.length}</span><span class="g-sec num" id="g-sec">${r.seconds}초</span></div>`;
     if (done) {
-      let picked = ''; try { const a = JSON.parse(done); picked = a.c !== undefined ? (r.type === 'ox' ? OX[a.c] : (it.choices?.[a.c] ?? '')) : a.n; } catch (e) {}
+      let picked = ''; try { const a = JSON.parse(done); picked = a.c !== undefined ? (r.type === 'ox' ? OX[a.c] : (it.choices?.[a.c] || SYM[a.c] || '')) : a.n; } catch (e) {}
       return head + `<div class="gq">${esc(it.q)}</div><div class="done card"><div class="ck pop">✓</div><h2 style="font-size:28px">접수 완료!</h2><p class="muted">내 답: <b>${esc(picked)}</b></p><p class="tiny">결과는 큰 화면과 함께 공개됩니다</p></div>`;
     }
     let body = '';
     if (r.type === 'ox') body = `<div class="gchoices"><button class="gchoice ox c1 ${submitting ? 'dis' : ''}" data-act="pick" data-i="0">⭕</button><button class="gchoice ox c0 ${submitting ? 'dis' : ''}" data-act="pick" data-i="1">❌</button></div>`;
-    else if (r.type === 'quiz') body = `<div class="gchoices">${it.choices.map((c, i) => `<button class="gchoice c${i} ${submitting ? 'dis' : ''}" data-act="pick" data-i="${i}"><span class="sym">${SYM[i]}</span><span>${esc(c)}</span></button>`).join('')}</div>`;
+    else if (r.type === 'quiz') body = (hasImages(it) ? '<p class="tiny">👀 큰 화면의 사진 4장을 보고, 같은 색 버튼을 누르세요</p>' : '') + `<div class="gchoices">${it.choices.map((c, i) => `<button class="gchoice c${i} ${submitting ? 'dis' : ''}" data-act="pick" data-i="${i}"><span class="sym">${SYM[i]}</span><span>${esc(c)}</span></button>`).join('')}</div>`;
     else if (r.type === 'majority') body = `<p class="tiny">내 취향이 아니라 "다수가 고를 쪽"!</p><div class="gchoices">${it.choices.map((c, i) => `<button class="gchoice two c${i} ${submitting ? 'dis' : ''}" data-act="pick" data-i="${i}">${esc(c)}</button>`).join('')}</div>`;
     else {
       const min = r.type === 'uniquemin' ? 1 : 0, max = r.type === 'estimate' ? '' : 100;
